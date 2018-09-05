@@ -76,6 +76,11 @@ public class App {
         this.configs = getConfigs(appConfig);
     }
 
+    public static void premain(String agentArgs) {
+        LOGGER.error("JMX Fetch agent has started");
+        //  System.exit(1);
+    }
+
     /**
      * Main entry of JMXFetch
      * <p/>
