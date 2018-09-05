@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -19,6 +20,7 @@ import javax.security.auth.login.FailedLoginException;
 
 import org.apache.log4j.Logger;
 import org.datadog.jmxfetch.reporter.Reporter;
+import org.yaml.snakeyaml.Yaml;
 
 public class Instance {
     private final static Logger LOGGER = Logger.getLogger(Instance.class.getName());
@@ -130,9 +132,10 @@ public class Instance {
             }
         }
 
-        // Add the configuration to get the default basic metrics from the JVM
-        configurationList.add(new Configuration((LinkedHashMap<String, Object>) new YamlParser(this.getClass().getResourceAsStream("/jmx-1.yaml")).getParsedYaml()));
-        configurationList.add(new Configuration((LinkedHashMap<String, Object>) new YamlParser(this.getClass().getResourceAsStream("/jmx-2.yaml")).getParsedYaml()));
+        ArrayList<LinkedHashMap<String, Object>> defaultConf = (ArrayList<LinkedHashMap<String, Object>>) new Yaml().load(this.getClass().getResourceAsStream("/org/datadog/jmxfetch/default-jmx.yaml"));
+        for (LinkedHashMap<String, Object> conf : defaultConf) {
+            configurationList.add(new Configuration(conf));
+        }
     }
 
     /**

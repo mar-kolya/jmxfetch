@@ -1,5 +1,7 @@
 package org.datadog.jmxfetch;
 
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -8,10 +10,14 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.Math;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
@@ -30,6 +36,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.commons.lang3.CharEncoding;
 import org.apache.commons.io.IOUtils;
+import org.apache.log4j.PropertyConfigurator;
 import org.datadog.jmxfetch.reporter.Reporter;
 import org.datadog.jmxfetch.util.CustomLogger;
 import org.datadog.jmxfetch.util.FileHelper;
@@ -66,7 +73,6 @@ public class App {
     private AppConfig appConfig;
     private HttpClient client;
 
-
     public App(AppConfig appConfig) {
         this.appConfig = appConfig;
         // setup client
@@ -76,17 +82,26 @@ public class App {
         this.configs = getConfigs(appConfig);
     }
 
-    public static void premain(String agentArgs) {
-        LOGGER.error("JMX Fetch agent has started");
-        //  System.exit(1);
-    }
-
     /**
      * Main entry of JMXFetch
      * <p/>
      * See AppConfig class for more details on the args
      */
     public static void main(String[] args) {
+        System.exit(run(args));
+    }
+
+    /**
+     * Main entry point of JMXFetch that returns integer on exit instead of calling {@code System#exit}
+     */
+    public static int run(String[] args) {
+
+        // Use special location for loj4j config avoid affecting client's app in Agent mode
+        try {
+            PropertyConfigurator.configure(new URL("classpath:/org/datadog/jmxfetch/log4j.properties"));
+        } catch (MalformedURLException e) {
+            // This should never happen because we initialize from static string
+        }
 
         // Load the config from the args
         AppConfig config = new AppConfig();
@@ -96,13 +111,13 @@ public class App {
             jCommander = new JCommander(config, args);
         } catch (ParameterException e) {
             System.out.println(e.getMessage());
-            System.exit(1);
+            return 1;
         }
 
         // Display the help and quit
         if (config.isHelp() || config.getAction().equals(AppConfig.ACTION_HELP)) {
             jCommander.usage();
-            System.exit(0);
+            return 0;
         }
 
         // Set up the logger to add file handler
@@ -112,13 +127,13 @@ public class App {
         // The specified action is unknown
         if (!AppConfig.ACTIONS.contains(config.getAction())) {
             LOGGER.fatal(config.getAction() + " is not in " + AppConfig.ACTIONS + ". Exiting.");
-            System.exit(1);
+            return 1;
         }
 
         // The "list_*" actions can only be used with the reporter
         if (!config.getAction().equals(AppConfig.ACTION_COLLECT) && !config.isConsoleReporter()) {
             LOGGER.fatal(config.getAction() + " argument can only be used with the console reporter. Exiting.");
-            System.exit(1);
+            return 1;
         }
 
         if(config.getAction().equals(AppConfig.ACTION_LIST_JVMS)) {
@@ -128,7 +143,7 @@ public class App {
             for(com.sun.tools.attach.VirtualMachineDescriptor descriptor : descriptors) {
                 System.out.println( "\tJVM id " + descriptor.id() + ": '" + descriptor.displayName() + "'" );
             }
-            System.exit(0);
+            return 0;
         }
 
         // Set up the shutdown hook to properly close resources
@@ -154,6 +169,7 @@ public class App {
             // Start the main loop
             app.start();
         }
+        return 0;
     }
 
     /**
@@ -282,7 +298,7 @@ public class App {
             // Exit on exit file trigger...
             if (appConfig.getExitWatcher().shouldExit()){
                 LOGGER.info("Exit file detected: stopping JMXFetch.");
-                System.exit(0);
+                return;
             }
 
             if(adPipe == null && appConfig.getAutoDiscoveryPipeEnabled()) {

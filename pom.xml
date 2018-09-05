@@ -256,7 +256,8 @@
                                     <manifestEntries>
                                         <Implementation-Branch>${scmBranch}</Implementation-Branch>
                                         <Implementation-Build>${buildNumber}</Implementation-Build>
-                                        <Premain-Class>org.datadog.jmxfetch.App</Premain-Class>
+                                        <Premain-Class>org.datadog.jmxfetch.Agent</Premain-Class>
+                                        <Agent-Class>org.datadog.jmxfetch.Agent</Agent-Class>
                                         <Main-Class>org.datadog.jmxfetch.App</Main-Class>
                                     </manifestEntries>
                                 </transformer>
