@@ -5,7 +5,7 @@
 
     <groupId>datadog</groupId>
     <artifactId>jmxfetch</artifactId>
-    <version>0.20.1</version>
+    <version>0.20.2</version>
     <packaging>jar</packaging>
 
     <name>jmxfetch</name>
@@ -35,7 +35,17 @@
         <shade-pattern>org.datadog.jmxfetch.shaded.</shade-pattern>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <bintray.repo>nikolaymartynov/jmxfetch</bintray.repo>
+        <bintray.package>jmxfetch</bintray.package>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>bintray-nikolaymartynov-jmxfetch</id>
+            <url>https://api.bintray.com/maven/${bintray.repo}/${bintray.package}/;publish=1</url>
+        </repository>
+    </distributionManagement>
 
     <dependencies>
         <dependency>
