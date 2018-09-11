@@ -1,11 +1,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>datadog</groupId>
     <artifactId>jmxfetch</artifactId>
-    <version>0.20.2</version>
+    <version>0.20.13</version>
     <packaging>jar</packaging>
 
     <name>jmxfetch</name>
@@ -23,16 +23,12 @@
         <log4j.version>1.2.17</log4j.version>
         <jackson.version>2.9.0</jackson.version>
         <snakeyaml.version>1.13</snakeyaml.version>
-        <jmxlocal.version>1.0</jmxlocal.version>
 
         <junit.version>4.11</junit.version>
         <mockito.version>2.2.27</mockito.version>
 
         <maven-surefire-plugin.version>2.9</maven-surefire-plugin.version>
         <buildnumber-maven-plugin.version>1.4</buildnumber-maven-plugin.version>
-        <maven-shade-plugin.version>3.1.1</maven-shade-plugin.version>
-
-        <shade-pattern>org.datadog.jmxfetch.shaded.</shade-pattern>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
@@ -123,11 +119,6 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>com.heliosapm.jmxlocal</groupId>
-            <artifactId>jmxlocal</artifactId>
-            <version>${jmxlocal.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>${snakeyaml.version}</version>
@@ -152,12 +143,6 @@
         <url>git@github.com:Datadog/jmxfetch.git</url>
     </scm>
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -185,97 +170,23 @@
                     <addOutputDirectoryToResources>true</addOutputDirectoryToResources>
                 </configuration>
             </plugin>
-
-            <!-- Build a full shaded jar with dependencies -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>${maven-shade-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <!-- If set to true classes only referenced as services get removed -->
-                            <minimizeJar>false</minimizeJar>
-                            <artifactSet>
-                                <excludes>
-                                    <exclude>com.sun:tools</exclude>
-                                </excludes>
-                            </artifactSet>
-                            <relocations>
-                                <!-- Note: unfortunately shade plugin is not very clever and we have to list
-                                    all our dependencies (including transitives!) manually here.
-                                    Otherwise things like java.lang.String get relocated or service files get
-                                    garbage in them. -->
-                                <relocation>
-                                    <pattern>com.beust</pattern>
-                                    <shadedPattern>${shade-pattern}com.beust</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.sun</pattern>
-                                    <shadedPattern>${shade-pattern}com.sun</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.google</pattern>
-                                    <shadedPattern>${shade-pattern}com.google</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.fasterxml</pattern>
-                                    <shadedPattern>${shade-pattern}com.fasterxml</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.datadoghq</pattern>
-                                    <shadedPattern>${shade-pattern}com.datadoghq</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.heliosapm</pattern>
-                                    <shadedPattern>${shade-pattern}com.heliosapm</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.timgroup</pattern>
-                                    <shadedPattern>${shade-pattern}com.timgroup</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache</pattern>
-                                    <shadedPattern>${shade-pattern}org.apache</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.kohsuke</pattern>
-                                    <shadedPattern>${shade-pattern}org.kohsuke</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.yaml</pattern>
-                                    <shadedPattern>${shade-pattern}org.yaml</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <manifestEntries>
-                                        <Implementation-Branch>${scmBranch}</Implementation-Branch>
-                                        <Implementation-Build>${buildNumber}</Implementation-Build>
-                                        <Premain-Class>org.datadog.jmxfetch.Agent</Premain-Class>
-                                        <Agent-Class>org.datadog.jmxfetch.Agent</Agent-Class>
-                                        <Main-Class>org.datadog.jmxfetch.App</Main-Class>
-                                    </manifestEntries>
-                                </transformer>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>org.datadog.jmxfetch.App</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <Implementation-Branch>${scmBranch}</Implementation-Branch>
+                            <Implementation-Build>${buildNumber}</Implementation-Build>
+                        </manifestEntries>
+                    </archive>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                </configuration>
             </plugin>
         </plugins>
     </build>

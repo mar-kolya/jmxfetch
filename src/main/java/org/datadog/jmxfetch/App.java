@@ -1,7 +1,5 @@
 package org.datadog.jmxfetch;
 
-import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableList;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -9,15 +7,10 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.lang.Math;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
@@ -36,11 +29,9 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.commons.lang3.CharEncoding;
 import org.apache.commons.io.IOUtils;
-import org.apache.log4j.PropertyConfigurator;
 import org.datadog.jmxfetch.reporter.Reporter;
 import org.datadog.jmxfetch.util.CustomLogger;
 import org.datadog.jmxfetch.util.FileHelper;
-
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
@@ -88,20 +79,6 @@ public class App {
      * See AppConfig class for more details on the args
      */
     public static void main(String[] args) {
-        System.exit(run(args));
-    }
-
-    /**
-     * Main entry point of JMXFetch that returns integer on exit instead of calling {@code System#exit}
-     */
-    public static int run(String[] args) {
-
-        // Use special location for loj4j config avoid affecting client's app in Agent mode
-        try {
-            PropertyConfigurator.configure(new URL("classpath:/org/datadog/jmxfetch/log4j.properties"));
-        } catch (MalformedURLException e) {
-            // This should never happen because we initialize from static string
-        }
 
         // Load the config from the args
         AppConfig config = new AppConfig();
@@ -111,15 +88,22 @@ public class App {
             jCommander = new JCommander(config, args);
         } catch (ParameterException e) {
             System.out.println(e.getMessage());
-            return 1;
+            System.exit(1);
         }
 
         // Display the help and quit
         if (config.isHelp() || config.getAction().equals(AppConfig.ACTION_HELP)) {
             jCommander.usage();
-            return 0;
+            System.exit(0);
         }
 
+        System.exit(run(config));
+    }
+
+    /**
+     * Main entry point of JMXFetch that returns integer on exit instead of calling {@code System#exit}
+     */
+    public static int run(AppConfig config) {
         // Set up the logger to add file handler
         CustomLogger.setup(Level.toLevel(config.getLogLevel()), config.getLogLocation());
 
@@ -516,40 +500,68 @@ public class App {
 
     private ConcurrentHashMap<String, YamlParser> getConfigs(AppConfig config) {
         ConcurrentHashMap<String, YamlParser> configs = new ConcurrentHashMap<String, YamlParser>();
-        YamlParser fileConfig;
 
+        loadFileConfigs(config, configs);
+        loadResourceConfigs(config, configs);
+
+        LOGGER.info("Found " + configs.size() + " config files");
+        return configs;
+    }
+
+    private void loadFileConfigs(AppConfig config, ConcurrentHashMap<String, YamlParser> configs) {
         List<String> fileList = config.getYamlFileList();
-        if (fileList == null) {
-            return configs;
-        }
-
-        for (String fileName : fileList) {
-            File f = new File(config.getConfdDirectory(), fileName);
-            String name = f.getName().replace(".yaml", "");
-            FileInputStream yamlInputStream = null;
-            String yamlPath = f.getAbsolutePath();
-            try {
+        if (fileList != null) {
+            for (String fileName : fileList) {
+                File f = new File(config.getConfdDirectory(), fileName);
+                String name = f.getName().replace(".yaml", "");
+                String yamlPath = f.getAbsolutePath();
+                FileInputStream yamlInputStream = null;
                 LOGGER.info("Reading " + yamlPath);
-                yamlInputStream = new FileInputStream(yamlPath);
-                fileConfig = new YamlParser(yamlInputStream);
-                configs.put(name, fileConfig);
-            } catch (FileNotFoundException e) {
-                LOGGER.warn("Cannot find " + yamlPath);
-            } catch (Exception e) {
-                LOGGER.warn("Cannot parse yaml file " + yamlPath, e);
-            } finally {
-                if (yamlInputStream != null) {
-                    try {
-                        yamlInputStream.close();
-                    } catch (IOException e) {
-                        // ignore
+                try {
+                    yamlInputStream = new FileInputStream(yamlPath);
+                    configs.put(name, new YamlParser(yamlInputStream));
+                } catch (FileNotFoundException e) {
+                    LOGGER.warn("Cannot find " + yamlPath);
+                } catch (Exception e) {
+                    LOGGER.warn("Cannot parse yaml file " + yamlPath, e);
+                } finally {
+                    if (yamlInputStream != null) {
+                        try {
+                            yamlInputStream.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
                     }
                 }
             }
         }
+    }
 
-        LOGGER.info("Found " + configs.size() + " config files");
-        return configs;
+    private void loadResourceConfigs(AppConfig config, ConcurrentHashMap<String, YamlParser> configs) {
+        List<String> resourceConfigList = config.getInstanceConfigResources();
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (resourceConfigList != null) {
+            for (String resourceName : resourceConfigList) {
+                String name = resourceName.replace(".yaml", "");
+                LOGGER.info("Reading " + resourceName);
+                InputStream inputStream = classLoader.getResourceAsStream(resourceName);
+                if (inputStream == null) {
+                    LOGGER.warn("Cannot find " + resourceName);
+                } else {
+                    try {
+                        configs.put(name, new YamlParser(inputStream));
+                    } catch (Exception e) {
+                        LOGGER.warn("Cannot parse yaml file " + resourceName, e);
+                    } finally {
+                        try {
+                            inputStream.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private boolean getJSONConfigs() {

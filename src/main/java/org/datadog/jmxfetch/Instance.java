@@ -1,5 +1,8 @@
 package org.datadog.jmxfetch;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ClassCastException;
 import java.util.ArrayList;
@@ -78,11 +81,16 @@ public class Instance {
         this.checkName = checkName;
         this.matchingAttributes = new LinkedList<JMXAttribute>();
         this.failingAttributes = new HashSet<JMXAttribute>();
-        this.refreshBeansPeriod = (Integer) instanceMap.get("refresh_beans");
-        if (this.refreshBeansPeriod == null) {
-            this.refreshBeansPeriod = DEFAULT_REFRESH_BEANS_PERIOD; // Make sure to refresh the beans list every 10 minutes
-            // Useful because sometimes if the application restarts, jmxfetch might read
-            // a jmxtree that is not completely initialized and would be missing some attributes
+        if (appConfig.getRefreshBeansPeriod() == null) {
+            this.refreshBeansPeriod = (Integer) instanceMap.get("refresh_beans");
+            if (this.refreshBeansPeriod == null) {
+                this.refreshBeansPeriod = DEFAULT_REFRESH_BEANS_PERIOD; // Make sure to refresh the beans list every 10 minutes
+                // Useful because sometimes if the application restarts, jmxfetch might read
+                // a jmxtree that is not completely initialized and would be missing some attributes
+            }
+        } else {
+            // Allow global overrides
+            this.refreshBeansPeriod = appConfig.getRefreshBeansPeriod();
         }
 
         this.minCollectionPeriod = (Integer) instanceMap.get("min_collection_interval");
@@ -132,9 +140,40 @@ public class Instance {
             }
         }
 
-        ArrayList<LinkedHashMap<String, Object>> defaultConf = (ArrayList<LinkedHashMap<String, Object>>) new Yaml().load(this.getClass().getResourceAsStream("/org/datadog/jmxfetch/default-jmx.yaml"));
+        loadMetricConfigFiles(appConfig, configurationList);
+
+        ArrayList<LinkedHashMap<String, Object>> defaultConf = (ArrayList<LinkedHashMap<String, Object>>) new Yaml().load(this.getClass().getResourceAsStream("default-jmx-metrics.yaml"));
         for (LinkedHashMap<String, Object> conf : defaultConf) {
             configurationList.add(new Configuration(conf));
+        }
+    }
+
+    private void loadMetricConfigFiles(AppConfig appConfig, LinkedList<Configuration> configurationList) {
+        if (appConfig.getMetricConfigFiles() != null) {
+            for (String fileName : appConfig.getMetricConfigFiles()) {
+                String yamlPath = new File(fileName).getAbsolutePath();
+                FileInputStream yamlInputStream = null;
+                LOGGER.info("Reading metric config file " + yamlPath);
+                try {
+                    yamlInputStream = new FileInputStream(yamlPath);
+                    ArrayList<LinkedHashMap<String, Object>> confs = (ArrayList<LinkedHashMap<String, Object>>) new Yaml().load(yamlInputStream);
+                    for (LinkedHashMap<String, Object> conf : confs) {
+                        configurationList.add(new Configuration(conf));
+                    }
+                } catch (FileNotFoundException e) {
+                    LOGGER.warn("Cannot find metric config file " + yamlPath);
+                } catch (Exception e) {
+                    LOGGER.warn("Cannot parse yaml file " + yamlPath, e);
+                } finally {
+                    if (yamlInputStream != null) {
+                        try {
+                            yamlInputStream.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
+                }
+            }
         }
     }
 
